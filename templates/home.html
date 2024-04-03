@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home Page</title>
+    <style>
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-gap: 10px;
+        }
+        .image-grid img {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <section>
+        <p>Welcome, {{ username }}!</p>
+        <form action="/logout" method="post">
+            <button type="submit">Logout</button>
+        </form>
+        <form action="/upload" method="get">
+            <button type="submit">Upload Images</button>
+        </form>
+        <div class="image-grid">
+            {% for image, mimetype in images_and_mimetypes %}
+                <img src="data:{{ mimetype }};base64,{{ image }}">
+            {% endfor %}
+        </div>
+        <form action="/create" method="get">
+            <button type="submit">Create Video</button>
+        </form>
+    </section>
+</body>
+</html>

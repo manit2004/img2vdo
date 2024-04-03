@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Page</title>
+</head>
+<body>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" id="images" name="images" accept="image/*" multiple>
+        <button type="submit">Save</button>
+    </form>
+    <script>
+        var input = document.getElementById('images');
+        input.onchange = function() {
+            alert('Selected ' + this.files.length + ' file(s)');
+        };
+    </script>
+</body>
+</html>

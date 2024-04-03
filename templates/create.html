@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Video</title>
+    <style>
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-gap: 10px;
+        }
+        .image-grid img {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <section>
+        <p>Welcome, {{ username }}!</p>
+        <form action="/logout" method="post">
+            <button type="submit">Logout</button>
+        </form>
+        <form action="/create" method="post">
+            <select name="transitions">
+                <option value="fade_in">Fade In</option>
+                <option value="fade_out">Fade Out</option>
+                <option value="cross_fade">Cross Fade</option>
+            </select>
+            <select name="audio">
+                {% for audio in audios %}
+                    <option value="{{ audio }}">{{ audio }}</option>
+                {% endfor %}
+            </select>
+            <div class="image-grid">
+                {% for i in range(image_ids|length) %}
+                    <div class="image-container">
+                        <img src="data:{{ mimetypes[i] }};base64,{{ images[i] }}">
+                        <input class="image-checkbox" type="checkbox" name="image_ids" value="{{ image_ids[i] }}">
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="submit">Create Video</button>
+        </form>
+    </section>
+    {% if slideshow_path %}
+    <video controls>
+        <source src="{{ url_for('static', filename='slideshow.mp4') }}?{{ time() }}" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <a href="{{ url_for('static', filename='slideshow.mp4') }}?{{ time() }}" download>Download Video</a>
+    {% endif %}
+</body>
+</html>
