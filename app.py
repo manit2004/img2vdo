@@ -29,7 +29,7 @@ def crossfade(clip1, clip2, fade_duration):
 #     return conn
 
 def get_db_connection():
-    conn = psycopg2.connect("postgresql://manitroy:hZoVrgVUlm5JV81h3rtraQ@issproject-4067.7s5.aws-ap-south-1.cockroachlabs.cloud:26257/img2vdo?sslmode=verify-full")
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
     cur = conn.cursor()
     cur.execute('CREATE TABLE IF NOT EXISTS users (name TEXT, username TEXT, email TEXT, password TEXT, images TEXT)')
     cur.execute('CREATE TABLE IF NOT EXISTS images (image_id SERIAL PRIMARY KEY, username TEXT, image BYTEA, metadata TEXT, mimetype TEXT)')
