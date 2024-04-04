@@ -2,22 +2,97 @@
 <html>
 <head>
     <title>Signup Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #5755FE;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #FFF7FC;
+        }
+
+        .container {
+            background-color: #FF71CD;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            color: #5755FE;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            color: #5755FE;
+        }
+
+        input[type="text"], input[type="password"], input[type="email"] {
+            margin-top: 5px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+        }
+
+        input[type="submit"] {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #5755FE;
+            color: #FFF7FC;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #8B93FF;
+        }
+
+        .error {
+            color: #5755FE;
+            margin-top: 10px;
+        }
+
+        a {
+            color: #5755FE;
+            text-decoration: none;
+        }
+
+        p{
+            color: #5755FE;
+        }
+
+        a:hover {
+            color: #8B93FF;
+        }
+    </style>
 </head>
 <body>
-    <form action="/signup" method="post">
-        <label for="name">Name:</label><br>
-        <input type="text" id="name" name="name"><br>
-        <label for="username">Username:</label><br>
-        <input type="text" id="username" name="username"><br>
-        <label for="email">Email:</label><br>
-        <input type="email" id="email" name="email"><br>
-        <label for="pwd">Password:</label><br>
-        <input type="password" id="pwd" name="password"><br>
-        <input type="submit" value="Submit">
-    </form>
-    {% if error %}
-        <p class="error">{{ error }}</p>
-    {% endif %}
-    <p>Already have an account? <a href="/login">Login here</a></p>
+    <div class="container">
+        <h1>Signup Page</h1>
+        <form action="/signup" method="post">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email">
+            <label for="pwd">Password:</label>
+            <input type="password" id="pwd" name="password">
+            <input type="submit" value="Submit">
+        </form>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        <p>Already have an account? <a href="/login">Login here</a></p>
+    </div>
 </body>
 </html>
