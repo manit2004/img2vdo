@@ -10,6 +10,7 @@ import numpy as np
 import io
 import tempfile
 from time import time
+import psycopg2
 
 app = Flask(__name__)
 app.secret_key = 'your secret key'
@@ -19,32 +20,40 @@ def crossfade(clip1, clip2, fade_duration):
     clip2 = fadein(clip2, fade_duration)
     return CompositeVideoClip([clip1, clip2.set_start(clip1.duration - fade_duration)])
 
+# def get_db_connection():
+#     conn = sqlite3.connect('database.db')
+#     conn.execute('CREATE TABLE IF NOT EXISTS users (name TEXT, username TEXT, email TEXT, password TEXT, images TEXT)')
+#     conn.execute('CREATE TABLE IF NOT EXISTS images (image_id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, image BLOB, metadata TEXT, mimetype TEXT)')
+#     conn.execute('CREATE TABLE IF NOT EXISTS audio (data BLOB, metadata TEXT)')
+#     conn.row_factory = sqlite3.Row
+#     return conn
+
 def get_db_connection():
-    conn = sqlite3.connect('database.db')
-    conn.execute('CREATE TABLE IF NOT EXISTS users (name TEXT, username TEXT, email TEXT, password TEXT, images TEXT)')
-    conn.execute('CREATE TABLE IF NOT EXISTS images (image_id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, image BLOB, metadata TEXT, mimetype TEXT)')
-    conn.execute('CREATE TABLE IF NOT EXISTS audio (data BLOB, metadata TEXT)')
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect("postgresql://manitroy:hZoVrgVUlm5JV81h3rtraQ@issproject-4067.7s5.aws-ap-south-1.cockroachlabs.cloud:26257/img2vdo?sslmode=verify-full")
+    cur = conn.cursor()
+    cur.execute('CREATE TABLE IF NOT EXISTS users (name TEXT, username TEXT, email TEXT, password TEXT, images TEXT)')
+    cur.execute('CREATE TABLE IF NOT EXISTS images (image_id SERIAL PRIMARY KEY, username TEXT, image BYTEA, metadata TEXT, mimetype TEXT)')
+    cur.execute('CREATE TABLE IF NOT EXISTS audio (data BYTEA, metadata TEXT)')
+    conn.commit()
     return conn
 
-@app.before_request
 def upload_audio_files():
-    if not getattr(g, 'audio_files_uploaded', None):
-        conn = get_db_connection()
-        audio_folder = 'audio'
-        for filename in os.listdir(audio_folder):
-            if filename.endswith('.mp3') or filename.endswith('.wav'):
-                with open(os.path.join(audio_folder, filename), 'rb') as f:
-                    audio_data = f.read()
-                audio = conn.execute('SELECT * FROM audio WHERE metadata = ?', (filename,)).fetchone()
-                if audio is None:
-                    conn.execute('INSERT INTO audio (data, metadata) VALUES (?, ?)', (audio_data, filename))
-                    print('Audio uploaded: ' + filename)
-                else:
-                    print('Audio already loaded: ' + filename)
-        conn.commit()
-        conn.close()
-        g.audio_files_uploaded = True
+    conn = get_db_connection()
+    cur=conn.cursor()
+    audio_folder = 'audio'
+    for filename in os.listdir(audio_folder):
+        if filename.endswith('.mp3') or filename.endswith('.wav'):
+            with open(os.path.join(audio_folder, filename), 'rb') as f:
+                audio_data = f.read()
+            cur.execute('SELECT * FROM audio WHERE metadata = %s', (filename,))
+            audio = cur.fetchone()
+            if audio is None:
+                cur.execute('INSERT INTO audio (data, metadata) VALUES (%s, %s)', (audio_data, filename))
+                print('Audio uploaded: ' + filename)
+    conn.commit()
+    conn.close()
+
+upload_audio_files()
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
@@ -54,17 +63,19 @@ def upload():
     if request.method == 'POST':
         images = request.files.getlist('images')
         conn = get_db_connection()
+        cur=conn.cursor()
         for image in images:
-            conn.execute('INSERT INTO images (username, image, metadata, mimetype) VALUES (?, ?, ?, ?)',
-                         (session['username'], image.read(), image.filename, image.content_type))
+            cur.execute('INSERT INTO images (username, image, metadata, mimetype) VALUES (%s, %s, %s, %s) RETURNING image_id',
+            (session['username'], image.read(), image.filename, image.content_type))
             conn.commit()
-            image_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-            user_images = conn.execute('SELECT images FROM users WHERE username = ?', (session['username'],)).fetchone()[0]
+            image_id = cur.fetchone()[0]
+            cur.execute('SELECT images FROM users WHERE username = %s', (session['username'],))
+            user_images = cur.fetchone()[0]
             if user_images:
                 user_images += ',' + str(image_id)
             else:
                 user_images = str(image_id)
-            conn.execute('UPDATE users SET images = ? WHERE username = ?', (user_images, session['username']))
+            cur.execute('UPDATE users SET images = %s WHERE username = %s', (user_images, session['username']))
             conn.commit()
         conn.close()
         return redirect(url_for('home'))
@@ -81,10 +92,12 @@ def signup():
         password = generate_password_hash(request.form['password'])
 
         conn = get_db_connection()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        cur=conn.cursor()
+        cur.execute('SELECT * FROM users WHERE username = %s', (username,))
+        user = cur.fetchone()
         if user is None:
-            conn.execute('INSERT INTO users (name, username, email, password, images) VALUES (?, ?, ?, ?, ?)',
-                         (name, username, email, password, ''))
+            cur.execute('INSERT INTO users (name, username, email, password, images) VALUES (%s, %s, %s, %s, %s)',
+            (name, username, email, password, ''))
             conn.commit()
             conn.close()
             return redirect(url_for('home'))
@@ -100,13 +113,15 @@ def login():
         password = request.form['password']
 
         conn = get_db_connection()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        cur=conn.cursor()
+        cur.execute('SELECT password FROM users WHERE username = %s', (username,))
+        user = cur.fetchone()
         conn.close()
 
         if user is None:
             error = 'User does not have an account.'
         else:
-            if check_password_hash(user['password'], password):
+            if check_password_hash(user[0], password):
                 session['username'] = username
                 session['password'] = password
                 return redirect(url_for('home'))
@@ -120,14 +135,18 @@ def home():
         return redirect(url_for('login'))
 
     conn = get_db_connection()
-    user_images = conn.execute('SELECT images FROM users WHERE username = ?', (session['username'],)).fetchone()[0]
+    cur=conn.cursor()
+    cur.execute('SELECT images FROM users WHERE username = %s', (session['username'],))
+    user_images = cur.fetchone()[0]
     image_ids = user_images.split(',')
     images_and_mimetypes = []
     for image_id in image_ids:
-        row = conn.execute('SELECT image, mimetype FROM images WHERE image_id = ?', (image_id,)).fetchone()
-        if row is not None:
-            image = base64.b64encode(row[0]).decode('ascii')
-            images_and_mimetypes.append((image, row[1]))
+        if image_id:  # Skip the query if image_id is an empty string
+            cur.execute('SELECT image, mimetype FROM images WHERE image_id = %s', (image_id,))
+            row = cur.fetchone()
+            if row is not None:
+                image = base64.b64encode(row[0]).decode('ascii')
+                images_and_mimetypes.append((image, row[1]))
     conn.close()
 
     return render_template('home.html', username=session['username'], images_and_mimetypes=images_and_mimetypes)
@@ -138,6 +157,7 @@ def create():
         return redirect(url_for('login'))
 
     conn = get_db_connection()
+    cur=conn.cursor()
     slideshow_path = None
     if request.method == 'POST':
         image_ids = request.form.getlist('image_ids')
@@ -148,14 +168,16 @@ def create():
         print(image_ids)
         print(audio_file_name)
         for image_id in image_ids:
-            row = conn.execute('SELECT image FROM images WHERE image_id = ?', (image_id,)).fetchone()
+            cur.execute('SELECT image FROM images WHERE image_id = %s', (image_id,))
+            row = cur.fetchone()
             if row is not None:
                 image = Image.open(io.BytesIO(row[0]))
                 image = image.resize((640, 480))  # Resize the image to 640x480
                 image = np.array(image)  # Convert the image to a Numpy array
                 images.append(image)
 
-        audio_row = conn.execute('SELECT data FROM audio WHERE metadata = ?', (audio_file_name,)).fetchone()
+        cur.execute('SELECT data FROM audio WHERE metadata = %s', (audio_file_name,))
+        audio_row = cur.fetchone()
         if audio_row is not None:
             audio_blob = audio_row[0]
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
@@ -192,17 +214,21 @@ def create():
         else:
             return "No images found", 400
 
-    user_images = conn.execute('SELECT images FROM users WHERE username = ?', (session['username'],)).fetchone()[0]
+    cur.execute('SELECT images FROM users WHERE username = %s', (session['username'],))
+    user_images = cur.fetchone()[0]
     image_ids = user_images.split(',')
     images = []
     mimetypes = []
     for image_id in image_ids:
-        row = conn.execute('SELECT image, mimetype FROM images WHERE image_id = ?', (image_id,)).fetchone()
+        cur.execute('SELECT image, mimetype FROM images WHERE image_id = %s', (image_id,))
+        row = cur.fetchone()
         if row is not None:
             image = base64.b64encode(row[0]).decode('ascii')
             images.append(image)
             mimetypes.append(row[1])
-    audios = [row['metadata'] for row in conn.execute('SELECT metadata FROM audio').fetchall()]
+    cur.execute('SELECT metadata FROM audio')
+    rows = cur.fetchall()
+    audios = [row[0] for row in rows]
     conn.close()
 
     return render_template('create.html', username=session['username'], images=images, image_ids=image_ids, audios=audios, mimetypes=mimetypes, slideshow_path=slideshow_path, time=time)
